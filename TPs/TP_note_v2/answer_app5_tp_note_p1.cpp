@@ -229,11 +229,9 @@ namespace et
 //--------------------------------------------------------------------------------------
 int main()
 {
-  using namespace et;
-
   // Q5) Exemple : f = fma(_1, abs(_2), _0);
   // => calcul : _1 * abs(_2) + _0
-  constexpr auto f = fma(_1, abs(_2), _0);
+  constexpr auto f = et::fma(et::_1, abs(et::_2),et::_0);
 
   // Affichage de l'expression symbolique
   std::cout << "Expression = ";
@@ -248,7 +246,7 @@ int main()
 
   // Autres petits exemples :
   // 1) _0 + _1 => x0 + x1
-  constexpr auto g = _0 + _1;
+  constexpr auto g = et::_0 + et::_1;
   std::cout << "g(10, 3) = " << g(10, 3) << "\n"; // => 13
 
   // 2) _2 * 4 => on peut faire: _2 * terminal immuable, mais
@@ -256,7 +254,7 @@ int main()
   //    le remplacer par un code direct (ou on ferait un node constant).
   //    Pour la démo, on reste sur _2...
   //    Par exemple, h = fma(_2, _2, _0) => x2*x2 + x0
-  constexpr auto h = fma(_2, _2, _0);
+  constexpr auto h = et::fma(et::_2, et::_2, et::_0);
   std::cout << "h(5, 99, 3) = " << h(5, 99, 3) << "\n"; // => 3 + 99*99 ?
 
   return 0;
