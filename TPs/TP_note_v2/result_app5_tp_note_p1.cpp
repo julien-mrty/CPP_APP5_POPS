@@ -3,6 +3,8 @@
 #include <tuple>
 #include <algorithm>
 #include <sstream>
+#include <utility> // std::index_sequence, std::make_index_sequence
+#include <array>
 
 
 //--------------------------------------------------------------------------------------
@@ -22,7 +24,7 @@ namespace et
 {
   // Q1 - Définissez un concept expr qui est valide si un type T fournit un membre T::is_expr()
   template<typename T>
-  concept expr = requires()
+  concept expr = requires( /* ???? */ )
   {
     { T::is_expr() } -> std::convertible_to<bool>;
   };
@@ -53,18 +55,17 @@ namespace et
     {
       // Construit un tuple de tout les args et renvoit le ID-eme via std::get
       // Veillez à bien repsecter le fait que args est une reference universelle
-      // auto tuple = std::forward_as_tuple(args...); // Fonctionne aussi ?
-      auto tuple = std::forward_as_tuple(std::forward<Args>(args)...);
-      return std::get<ID>(tuple);
+      auto t = std::forward_as_tuple(std::forward<Args>(args)...);
+      return std::get<ID>(t);
     }
   };
 
   // Generateur de variable numérotée
   template<int ID>
-  inline constexpr auto arg = terminal<ID>{};
-  //  inline constexpr terminal<ID> arg{};
+  // inline constexpr auto arg =  terminal<ID>{};
+  inline constexpr terminal<ID> arg{};
 
-  // Variables _0, _1 et _2 sont prédéfinies
+  // Variables _0, _& et _2 sont prédéfinies
   inline constexpr auto _0  = arg<0>;
   inline constexpr auto _1  = arg<1>;
   inline constexpr auto _2  = arg<2>;
@@ -88,9 +89,11 @@ namespace et
 
     // Construisez un node à partir d'une instande de Op et d'une liste variadique de Children
     // Ce constructeur sera constexpr
-    constexpr node(Op o, Children... c) : op(o), children(c...) {}
+    constexpr node(Op o, Children... c)
+      : op(o), children(c...) 
+    {}
 
-    // L'operateur() de node permet d'évaluer le sous arbre courant de manière 
+    // L'operateur() de node permet d'avaluer le sous arbre courant de manière 
     // récursive. Les paramètres args... représentent dans l'ordre les valeurs des
     // variables contenus dans le sous arbre.
     // Par exemple, le node {op_add, terminal<1>, termnal<0>} appelant operator()(4, 9)
@@ -101,8 +104,8 @@ namespace et
     constexpr auto operator()(Args&&... args) const
     {
       auto subresults = std::apply(
-        [&](auto const&... child){
-          return std::array{ child(std::forward<Args>(args)...)... };
+        [&](auto const&... ch){
+          return std::array{ ch(std::forward<Args>(args)...)... };
         },
         children
       );
@@ -113,26 +116,26 @@ namespace et
     // Affiche un node en demandant à Op d'afficher les sous arbres
     std::ostream& print(std::ostream& os) const
     {
-      // Pour chaque sous-enfant, on capture sa représentation texte :
       auto arr = std::apply(
-        [&](auto const&... child){
+        [&](auto const&... ch){
           return std::array<std::string, sizeof...(Children)>{
-            child_to_string(child)...
+            child_to_string(ch)...
           };
         },
         children
       );
-      // Puis on appelle op.print en lui passant ce tableau :
+
       return op.print(os, arr);
     }
 
+    // Helper qui convertit un enfant (terminal ou node) en string
     static std::string child_to_string(auto const& sub)
     {
       std::ostringstream oss;
       sub.print(oss);
       return oss.str();
     }
-
+    
     // Op est stockée par valeur
     // les Children... sont stockées dans un tuple
     Op op;
@@ -155,7 +158,7 @@ namespace et
 
     std::ostream& print(std::ostream& os, auto a, auto b) const
     {
-      return os << a << " + " << b;
+      return os << a << " + " << b ;
     }
   };
   
@@ -172,7 +175,7 @@ namespace et
       - abs_ et une fonction abs pour le calcul de la valeur absolue
       - fma_ et une fonction fma(a,b,c) qui calcul a*b+c
   */
-  struct mul_
+  struct mul_ 
   {
     constexpr auto operator()(auto a, auto b) const
     {
@@ -181,7 +184,7 @@ namespace et
 
     std::ostream& print(std::ostream& os, auto a, auto b) const
     {
-      return os << a << " * " << b;
+      return os << a << " * " << b ;
     }
   };
   
@@ -191,45 +194,6 @@ namespace et
     return node{mul_{}, l, r};
   }
 
-
-  struct abs_
-  {
-    constexpr auto operator()(auto a) const
-    {
-      return (a > 0) ? a : -a;
-    }
-
-    std::ostream& print(std::ostream& os, auto a) const
-    {
-      return os << "abs(" << a << ")";
-    }
-  };
-  
-  template<expr T>
-  constexpr auto abs(T expr1)
-  {
-    return node{abs_{}, expr1};
-  }
-
-
-  struct fma_ 
-  {
-    constexpr auto operator()(auto a, auto b, auto c) const
-    {
-      return a * b + c;
-    }
-
-    std::ostream& print(std::ostream& os, auto a, auto b, auto c) const
-    {
-      return os << a << " * " << b << " + " << c;
-    }
-  };
-  
-  template<expr L, expr M, expr R>
-  constexpr auto fma(L l, M m, R r)
-  {
-    return node{fma_{}, l, m, r};
-  }
   
 }
 
@@ -237,11 +201,18 @@ int main()
 {
   // Q5. Le mini exemple ci dessous doit fonctionner. Complétez le avec une série de tests
   // exhaustif de tout les cas qui vous paraissent nécessaire.
-  constexpr auto f = et::fma(et::_1, abs(et::_2),et::_0);
+  
+/*   constexpr auto f = et::fma(et::_1, abs(et::_2),et::_0);
 
   f.print(std::cout) << "\n";
 
-  std::cout << f(1,2,3) << "\n";
+  std::cout << f(1,2,3) << "\n"; */
+
+  constexpr auto g = et::_0 + et::_1;
+  std::cout << "g(10, 3) = " << g(10, 3) << "\n"; // => 13
+
+  constexpr auto h = et::_0 * et::_1;
+  std::cout << "h(5, 4) = " << h(5, 4) << "\n"; // => 20
 
   return 0;
 }
