@@ -5,6 +5,7 @@
 #include <sstream>
 #include <utility> // std::index_sequence, std::make_index_sequence
 #include <array>
+#include <cassert>
 
 
 //--------------------------------------------------------------------------------------
@@ -55,15 +56,14 @@ namespace et
     {
       // Construit un tuple de tout les args et renvoit le ID-eme via std::get
       // Veillez à bien repsecter le fait que args est une reference universelle
-      auto t = std::forward_as_tuple(std::forward<Args>(args)...);
-      return std::get<ID>(t);
+      auto tuple = std::forward_as_tuple(std::forward<Args>(args)...);
+      return std::get<ID>(tuple);
     }
   };
 
   // Generateur de variable numérotée
   template<int ID>
-  // inline constexpr auto arg =  terminal<ID>{};
-  inline constexpr terminal<ID> arg{};
+  inline constexpr auto arg =  terminal<ID>{};
 
   // Variables _0, _& et _2 sont prédéfinies
   inline constexpr auto _0  = arg<0>;
@@ -104,8 +104,8 @@ namespace et
     constexpr auto operator()(Args&&... args) const
     {
       auto subresults = std::apply(
-        [&](auto const&... ch){
-          return std::array{ ch(std::forward<Args>(args)...)... };
+        [&](auto const&... child){
+          return std::tuple{ child(std::forward<Args>(args)...)... };
         },
         children
       );
@@ -117,15 +117,21 @@ namespace et
     std::ostream& print(std::ostream& os) const
     {
       auto arr = std::apply(
-        [&](auto const&... ch){
+        [&](auto const&... child){
           return std::array<std::string, sizeof...(Children)>{
-            child_to_string(ch)...
+            child_to_string(child)...
           };
         },
         children
       );
 
-      return op.print(os, arr);
+      // On décompose le tableau pour que op.print recoive chaque chaîne séparément
+      return std::apply(
+        [&](auto const&... s) -> std::ostream& {
+          return op.print(os, s...);
+        },
+        arr
+      );
     }
 
     // Helper qui convertit un enfant (terminal ou node) en string
@@ -141,6 +147,7 @@ namespace et
     Op op;
     std::tuple<Children...> children;
   };
+
 
   //----------------------------------------------
   /*
@@ -194,25 +201,109 @@ namespace et
     return node{mul_{}, l, r};
   }
 
+  struct abs_ 
+  {
+    constexpr auto operator()(auto a) const
+    {
+      return (a < 0) ? -a : a;
+    }
+
+    std::ostream& print(std::ostream& os, auto a) const
+    {
+      return os << "abs(" << a << ")" ;
+    }
+/*     std::ostream& print(std::ostream& os, std::array<std::string, 1> const& st) const
+    {
+      return os << "abs(" << st[0] << ")";
+    } */
+  };
   
+  template<expr E>
+  constexpr auto abs(E e)
+  {
+    return node{abs_{}, e};
+  }
+
+  struct fma_ 
+  {
+    constexpr auto operator()(auto a, auto b, auto c) const
+    {
+      return (a * b) + c;
+    }
+
+    std::ostream& print(std::ostream& os, auto a, auto b, auto c) const
+    {
+      return os << "(" << a << " * " << b << ")" << " + " << c;
+    }
+/*     std::ostream& print(std::ostream& os, std::array<std::string, 3> const& st) const
+    {
+      return os << "(" << st[0] << " * " << st[1] << ") + " << st[2];
+    } */
+  };
+  
+  template<expr A, expr B, expr C>
+  constexpr auto fma(A a, B b, C c)
+  {
+    return node{fma_{}, a, b, c};
+  }  
 }
 
 int main()
 {
   // Q5. Le mini exemple ci dessous doit fonctionner. Complétez le avec une série de tests
   // exhaustif de tout les cas qui vous paraissent nécessaire.
-  
-/*   constexpr auto f = et::fma(et::_1, abs(et::_2),et::_0);
 
-  f.print(std::cout) << "\n";
+  std::cout << "========== fma : " << "\n";
+  constexpr auto f_1 = et::fma(et::_1, abs(et::_2),et::_0);
+  f_1.print(std::cout) << "\n";
 
-  std::cout << f(1,2,3) << "\n"; */
+  std::cout << "f_1(1, 2, 3) = " << f_1(1, 2, 3) << "\n";
+  assert(f_1(1, 2, 3) == 7);
+  std::cout << "f_1(1, 2, -3) = " << f_1(1, 2, -3) << "\n" << "\n";
+  assert(f_1(1, 2, -3) == 7);
 
+  constexpr auto f_2 = et::fma(et::_1, et::_2,et::_1);
+  f_2.print(std::cout) << "\n";
+  std::cout << "f_2(1, 2, 3) = " << f_2(1, 2, 3) << "\n";
+  assert(f_2(1, 2, 3) == 8);
+  std::cout << "f_2(1, 2, -3) = " << f_2(1, 2, -3) << "\n";
+  assert(f_2(1, 2, -3) == -4);
+
+
+  std::cout << "\n" << "========== add : " << "\n";
   constexpr auto g = et::_0 + et::_1;
-  std::cout << "g(10, 3) = " << g(10, 3) << "\n"; // => 13
+  g.print(std::cout) << "\n";
 
+  std::cout << "g(3, 6) = " << g(3, 6) << "\n";
+  assert(g(3, 6) == 9);
+  std::cout << "g(-4, 3) = " << g(-4, 3) << "\n";
+  assert( g(-4, 3) == -1);
+  std::cout << "g(-4.2, 5.7) = " << g(-4.2, 5.7) << "\n";
+  assert(std::abs(g(-4.2, 5.7) - 1.5) < 1e-12);
+  std::cout << "g(-4.2, 3) = " << g(-4.2, 3) << "\n";
+  assert(std::abs(g(-4.2, 3) + 1.2) < 1e-12);
+
+
+  std::cout << "\n" << "========== mul : " << "\n";
   constexpr auto h = et::_0 * et::_1;
-  std::cout << "h(5, 4) = " << h(5, 4) << "\n"; // => 20
+  h.print(std::cout) << "\n";
+
+  std::cout << "h(3, 6) = " << h(3, 6) << "\n";
+  assert(h(3, 6) == 18);
+  std::cout << "h(-4, 7) = " << h(-4, 7) << "\n";
+  assert(h(-4, 7) == -28);
+  std::cout << "h(3.4, 6.5) = " << h(3.4, 6.5) << "\n";
+  assert(std::abs(h(3.4, 6.5) - 22.1) < 1e-12);
+  std::cout << "h(-4, 7.2) = " << h(-4, 7.2) << "\n";
+  assert(std::abs(h(-4, 7.2) + 28.8) < 1e-12);
+
+  std::cout << "\n" << "========== combinaisons : " << "\n";
+  constexpr auto f_3 = et::fma(et::_0, et::_1,et::_2);
+  f_3.print(std::cout) << "\n";
+  h.print(std::cout) << "\n";
+
+  std::cout << "f_3(1, 2, h(3, 5)) = " << f_3(1, 2, h(3, 5)) << "\n";
+  assert(f_3(1, 2, h(3, 5)) == 17);
 
   return 0;
 }
