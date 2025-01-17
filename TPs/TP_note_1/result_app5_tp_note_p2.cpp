@@ -161,10 +161,35 @@ auto operator/(
 
   template<typename T, spec D> struct unit;
 */
+struct spec {
+  int dims[7];
+
+};
 
 int main()
 {
   // POUR CHAQUE ETAPE, ECRIVEZ LES TESTS QUE VOUS JUGEREZ SUFFISANT
-  unit<double, 1, 0, 0, 0, 0, 0, 0> mass_1{5.0}; 
-  mass mass_2 = {2.3};
+  unit<double, 1, 0, 0, 0, 0, 0, 0> m_1{5}; 
+  mass<double> m_2{10.0};       // 10 kg
+  length<double> L{5.0};        // 5 m
+  speed<double> v{1.0};         // 1 m/s
+  newton<double> F{20.0};       // 20 N
+  siemens<double> cond{0.5};    // 0.5 S
+
+  auto sum_mass_1 = m_1 + mass<double>{2.0};
+  std::cout << "sum_mass 1 = " << sum_mass_1.value << " (kg)\n";
+
+  auto sum_mass_2 = m_1 + m_2;
+  std::cout << "sum_mass 2 = " << sum_mass_2.value << " (kg)\n";
+
+  auto sub_length = L - length<int>{2};
+  std::cout << "sub_length = " << sub_length.value << " (kg)\n";
+
+  auto mass_length = m_1 * L;
+  std::cout << "mass_length = " << mass_length.value << " (kg * m)\n"; 
+
+  auto accel = F / m_2;
+  std::cout << "accel = " << accel.value << " (m * s^-2)\n";
+  
+  return 0;
 }
